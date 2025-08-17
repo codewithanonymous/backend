@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');           // <-- Add this line at top
 const http = require('http');
 const path = require('path');
 const multer = require('multer');
@@ -14,15 +15,9 @@ const { initSocket, emitNewSnap } = require('./socket');
 
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
-const cors = require('cors')
 
-// At the top with other requires
-const cors = require('cors');
-
-// After creating Express app
 const app = express();
 
-// CORS Configuration
 const allowedOrigins = [
     'https://kitsflick-frontend.onrender.com',
     'http://localhost:3000'
@@ -30,10 +25,11 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
+        console.log('CORS Origin:', origin);
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error('Not allowed by CORS: ' + origin));
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -41,27 +37,19 @@ const corsOptions = {
     credentials: true
 };
 
-// Apply CORS middleware
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Preflight OPTIONS requests
 
-// Handle pre-flight requests
-app.options('*', cors(corsOptions));
-
-
-// 2. Set up middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '../frontend')));
-
-// 3. Create HTTP server after Express setup
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// 4. Initialize Socket.IO after server is created
+// --- Socket.IO Initialization ---
 initSocket(server);
 
-// Rest of your routes and server logic...
-
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -73,6 +61,14 @@ app.use((req, res, next) => {
     console.log('User-Agent:', req.get('User-Agent'));
     next();
 });
+
+// Your routes and other app logic here...
+
+// Start server
+server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+});
+
 
 // --- File Upload Setup ---
 const uploadDir = path.join(__dirname, '../frontend', 'uploads');
