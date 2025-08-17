@@ -2,11 +2,12 @@ const express = require('express');
 const cors = require('cors');           // <-- Add this line at top
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const fs = require('fs');
+
 require('dotenv').config();
 
 // Import our custom modules with PostgreSQL support
@@ -23,12 +24,19 @@ const allowedOrigins = [
     'http://localhost:3000'
 ];
 
+const cors = require('cors');
+const allowedOrigins = [
+    'https://kitsflick-frontend.onrender.com',
+    'http://localhost:3000'
+];
+
 const corsOptions = {
     origin: function (origin, callback) {
         console.log('CORS Origin:', origin);
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            console.log('CORS blocked:', origin);
             callback(new Error('Not allowed by CORS: ' + origin));
         }
     },
@@ -37,9 +45,7 @@ const corsOptions = {
     credentials: true
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Preflight OPTIONS requests
-
+const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
@@ -47,30 +53,37 @@ const PORT = process.env.PORT || 3000;
 initSocket(server);
 
 // Middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Preflight OPTIONS requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const frontendPath = process.env.NODE_ENV === 'production' 
-    ? path.join(__dirname, '../../frontend/build')  // For Render
+
+// Static files - only if serving frontend from backend
+if (process.env.NODE_ENV === 'production') {
+    const frontendPath = path.join(__dirname, '../../frontend/build');
+    if (fs.existsSync(frontendPath)) {
+        app.use(express.static(frontendPath));
+        console.log('Serving static files from:', frontendPath);
+    }
+}
 
 // Request logging middleware
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Body:', req.body);
     console.log('Query:', req.query);
     console.log('Content-Type:', req.get('Content-Type'));
     console.log('User-Agent:', req.get('User-Agent'));
     next();
 });
 
-// Your routes and other app logic here...
+// Your routes here...
 
 // Start server
 server.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
     console.log(`Server listening on port ${PORT}`);
 });
-
-
 // --- File Upload Setup ---
 const uploadDir = path.join(__dirname, '../frontend', 'uploads');
 
