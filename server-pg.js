@@ -745,44 +745,38 @@ app.use((err, req, res, next) => {
 });
 
 // Cleanup expired snaps function
+// Cleanup expired snaps function
 async function cleanupExpiredSnaps() {
-    console.log('Running expired snaps cleanup...');
-    let client;
     try {
-        client = await db.getClient();
+        console.log('Running expired snaps cleanup...');
+        const client = await db.getClient();
         const result = await client.query(
             'DELETE FROM snaps WHERE expires_at < NOW() RETURNING id'
         );
-        
-        if (result.rows.length > 0) {
-            console.log(`Deleted ${result.rows.length} expired snaps:`, result.rows.map(r => r.id));
-        } else {
-            console.log('No expired snaps found to delete');
-        }
+        console.log(`Cleaned up ${result.rowCount} expired snaps`);
+        client.release();
     } catch (error) {
-        console.error('Error during expired snaps cleanup:', error);
-    } finally {
-        if (client) client.release();
+        console.error('Error during cleanup:', error);
     }
 }
-
 // Initialize database and start server
-db.initDb().then(() => {
-    // Start cleanup job - runs every hour
-    setInterval(cleanupExpiredSnaps, 60 * 60 * 1000); // 1 hour
-    console.log('Expired snaps cleanup job scheduled (runs every hour)');
-    
-    // Run cleanup immediately on startup
-    cleanupExpiredSnaps();
-    
-    server.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-        console.log('Snaps will automatically expire after 24 hours');
+if (!server.listening) {
+    db.initDb().then(() => {
+        // Start cleanup job if not already running
+        if (!global.cleanupJob) {
+            global.cleanupJob = setInterval(cleanupExpiredSnaps, 60 * 60 * 1000);
+            console.log('Expired snaps cleanup job scheduled (runs every hour)');
+        }
+        
+        // Start the server
+        server.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    }).catch(error => {
+        console.error('Failed to initialize database:', error);
+        process.exit(1);
     });
-}).catch(error => {
-    console.error('Failed to initialize database:', error);
-    process.exit(1);
-});
+}
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
