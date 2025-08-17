@@ -14,26 +14,39 @@ const { initSocket, emitNewSnap } = require('./socket');
 
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+const cors = require('cors')
 
-// 1. Initialize Express first
+// At the top with other requires
+const cors = require('cors');
+
+// After creating Express app
 const app = express();
 
 // CORS Configuration
+const allowedOrigins = [
+    'https://kitsflick-frontend.onrender.com',
+    'http://localhost:3000'
+];
+
 const corsOptions = {
-    origin: [
-        'https://kitsflick-frontend.onrender.com',
-        'http://localhost:3000'  // For local testing
-    ],
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
 
-// Apply CORS before other middleware
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
 // Handle pre-flight requests
 app.options('*', cors(corsOptions));
+
 
 // 2. Set up middleware
 app.use(express.json());
