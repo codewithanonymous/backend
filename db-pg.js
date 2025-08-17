@@ -4,7 +4,6 @@ const INTERNAL_DB_URL = process.env.DATABASE_URL;
 
 
 // Replace this with your internal DB URL from Render
-const INTERNAL_DB_URL = 'postgresql://snapchat_style_app_nxno_user:wNgDJ3sttmI1yna4ZjU4k8w41gLwhQcm@dpg-d2h1nkadbo4c73al1qo0-a/snapchat_style_app_nxno';
 
 // PostgreSQL connection pool
 const pool = new Pool({
