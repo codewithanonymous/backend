@@ -8,27 +8,6 @@ const bcrypt = require('bcrypt');
 const fs = require('fs');
 require('dotenv').config();
 
-const cors = require('cors');
-
-// Add this right after your other middleware (around line 26-28)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Add CORS configuration
-app.use(cors({
-    origin: [
-        'http://localhost:3000',  // For local development
-        'http://127.0.0.1:3000',  // Alternative localhost
-        'kitsflick-frontend.onrender.com',  // Your production frontend
-        'https://kitsflick-frontend.onrender.com/'  // With www
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.use(express.static(path.join(__dirname, '../frontend')));
-
 // Import our custom modules with PostgreSQL support
 const db = require('./db-pg');
 const { initSocket, emitNewSnap } = require('./socket');
@@ -36,16 +15,22 @@ const { initSocket, emitNewSnap } = require('./socket');
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
-const express = require('express');
+// 1. Initialize Express first
 const app = express();
-const server = http.createServer(app);
 
-// Middleware
+// 2. Set up middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
-// --- Socket.IO Initialization ---
+
+// 3. Create HTTP server after Express setup
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
+
+// 4. Initialize Socket.IO after server is created
 initSocket(server);
+
+// Rest of your routes and server logic...
 
 
 // Request logging middleware
