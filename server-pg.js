@@ -8,6 +8,27 @@ const bcrypt = require('bcrypt');
 const fs = require('fs');
 require('dotenv').config();
 
+const cors = require('cors');
+
+// Add this right after your other middleware (around line 26-28)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Add CORS configuration
+app.use(cors({
+    origin: [
+        'http://localhost:3000',  // For local development
+        'http://127.0.0.1:3000',  // Alternative localhost
+        'kitsflick-frontend.onrender.com',  // Your production frontend
+        'https://kitsflick-frontend.onrender.com/'  // With www
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.static(path.join(__dirname, '../frontend')));
+
 // Import our custom modules with PostgreSQL support
 const db = require('./db-pg');
 const { initSocket, emitNewSnap } = require('./socket');
