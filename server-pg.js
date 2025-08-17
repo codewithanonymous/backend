@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');           // <-- Add this line at top
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -7,24 +6,17 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-
+const cors = require('cors');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Import our custom modules with PostgreSQL support
 const db = require('./db-pg');
-const { initSocket, emitNewSnap } = require('./socket');
+const { initSocket } = require('./socket');
 
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
-const app = express();
-
-const allowedOrigins = [
-    'https://kitsflick-frontend.onrender.com',
-    'http://localhost:3000'
-];
-
-const cors = require('cors');
 const allowedOrigins = [
     'https://kitsflick-frontend.onrender.com',
     'http://localhost:3000'
@@ -47,10 +39,27 @@ const corsOptions = {
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
 
-// --- Socket.IO Initialization ---
-initSocket(server);
+// Initialize Socket.IO
+const io = new Server(server, {
+    cors: {
+        origin: allowedOrigins,
+        methods: ['GET', 'POST'],
+        credentials: true
+    },
+    path: '/socket.io/'
+});
+
+// Initialize socket handlers
+initSocket(io);
+
+// Apply middleware
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Rest of your middleware and routes...
 
 // Middleware
 app.use(cors(corsOptions));
