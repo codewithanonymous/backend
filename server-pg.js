@@ -18,6 +18,23 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 // 1. Initialize Express first
 const app = express();
 
+// CORS Configuration
+const corsOptions = {
+    origin: [
+        'https://kitsflick-frontend.onrender.com',
+        'http://localhost:3000'  // For local testing
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
+
+// Apply CORS before other middleware
+app.use(cors(corsOptions));
+
+// Handle pre-flight requests
+app.options('*', cors(corsOptions));
+
 // 2. Set up middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
