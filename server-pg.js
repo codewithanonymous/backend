@@ -36,17 +36,16 @@ const { initSocket, emitNewSnap } = require('./socket');
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
+const express = require('express');
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
-
-// --- Socket.IO Initialization ---
-initSocket(server);
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../frontend')));
+// --- Socket.IO Initialization ---
+initSocket(server);
 
 
 // Request logging middleware
