@@ -49,7 +49,8 @@ initSocket(server);
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '../frontend')));
+const frontendPath = process.env.NODE_ENV === 'production' 
+    ? path.join(__dirname, '../../frontend/build')  // For Render
 
 // Request logging middleware
 app.use((req, res, next) => {
