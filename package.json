@@ -5,7 +5,7 @@
     "main": "server-pg.js",
     "scripts": {
         "start": "node server-pg.js",
-        "dev": "nodemon server-pg.js",
+        "dev": "node server-pg.js",
         "migrate": "node run-migration.js"
     },
     "dependencies": {
