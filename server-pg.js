@@ -790,6 +790,7 @@ async function cleanupExpiredSnaps() {
         console.error('Error during cleanup:', error);
     }
 }
+
 // Initialize database and start server
 if (!server.listening) {
     db.initDb().then(() => {
@@ -799,17 +800,20 @@ if (!server.listening) {
             console.log('Expired snaps cleanup job scheduled (runs every hour)');
         }
         
-      // Only start the server if this file is run directly (not when imported)
-if (require.main === module) {
-    // Start server - only once at the end of the file
-    server.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-        console.log(`Server listening on port ${PORT}`);
-    }).on('error', (error) => {
-        console.error('Server failed to start:', error);
-        process.exit(1);
+        // Only start the server if this file is run directly (not when imported)
+        if (require.main === module) {
+            // Start server - only once at the end of the file
+            server.listen(PORT, '0.0.0.0', () => {
+                console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+                console.log(`Server listening on port ${PORT}`);
+            }).on('error', (error) => {
+                console.error('Server failed to start:', error);
+                process.exit(1);
+            });
+        }
     });
 }
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
