@@ -74,10 +74,14 @@ if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../../frontend/build');
     if (fs.existsSync(frontendPath)) {
         app.use(express.static(frontendPath));
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(frontendPath, 'index.html'));
+        });
         console.log('Serving static files from:', frontendPath);
+    } else {
+        console.warn('Frontend build directory not found at:', frontendPath);
     }
 }
-
 // Request logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
