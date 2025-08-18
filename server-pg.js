@@ -23,7 +23,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
 const allowedOrigins = [
     'https://kitsflick-frontend.onrender.com',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'http://localhost:5500',  // Common port for Live Server
+    'https://kitsflickbackend.onrender.com'  // Your backend domain
 ];
 
 const corsOptions = {
@@ -69,27 +71,39 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files - only if serving frontend from backend
-if (process.env.NODE_ENV === 'production') {
-    const possibleFrontendPaths = [
-        path.join(__dirname, '../../frontend/build'), // Render.com path
-        path.join(__dirname, '../frontend/build'),   // Local relative path
-        path.join(__dirname, './frontend/build')     // Another possible local path
-    ];
+// Serve static files from the frontend directory
+const frontendPath = path.join(__dirname, 'frontend');
+console.log('Frontend path:', frontendPath);
+
+// Serve static files (JS, CSS, images, etc.)
+if (fs.existsSync(frontendPath)) {
+    console.log('Serving static files from:', frontendPath);
+    app.use(express.static(frontendPath));
     
-    let frontendServed = false;
-    for (const frontendPath of possibleFrontendPaths) {
-        if (fs.existsSync(frontendPath)) {
-            app.use(express.static(frontendPath));
-            console.log('Serving static files from:', frontendPath);
-            frontendServed = true;
-            break;
+    // Serve the main HTML files
+    const serveHtml = (file) => (req, res) => {
+        const filePath = path.join(frontendPath, file);
+        console.log('Attempting to serve:', filePath);
+        if (fs.existsSync(filePath)) {
+            res.sendFile(filePath);
+        } else {
+            console.error('File not found:', filePath);
+            res.status(404).json({ error: 'File not found', path: filePath });
         }
-    }
+    };
+
+    // Serve the main pages
+    app.get('/', serveHtml('index.html'));
+    app.get('/feed', serveHtml('feed.html'));
+    app.get('/upload', serveHtml('upload.html'));
+    app.get('/admin', serveHtml('admin.html'));
     
-    if (!frontendServed) {
-        console.warn('Frontend build directory not found. API-only mode.');
-    }
+    // Handle client-side routing
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+} else {
+    console.warn('Frontend directory not found. Running in API-only mode.');
 }
 
 // Request logging middleware
@@ -169,36 +183,13 @@ const authenticateToken = (req, res, next) => {
 
 // --- Routes ---
 
-// Serve the index page if frontend files are available
-app.get('/', (req, res) => {
-    const possibleIndexPaths = [
-        path.join(__dirname, '../../frontend/build/index.html'),
-        path.join(__dirname, '../frontend/build/index.html'),
-        path.join(__dirname, './frontend/build/index.html'),
-        path.join(__dirname, '../frontend/index.html')
-    ];
-    
-    for (const indexPath of possibleIndexPaths) {
-        if (fs.existsSync(indexPath)) {
-            return res.sendFile(indexPath);
-        }
+// API status endpoint
+app.get('/api', (req, res) => {
+    if (fs.existsSync(frontendPath)) {
+        res.json({ status: 'API is running', message: 'Frontend is being served' });
+    } else {
+        res.json({ status: 'API is running', message: 'Frontend files not found. This appears to be an API-only deployment.' });
     }
-    
-    // If no index.html is found, send a simple response
-    res.status(200).json({
-        status: 'API is running',
-        message: 'Frontend files not found. This appears to be an API-only deployment.'
-    });
-});
-
-// Serve the upload page
-app.get('/upload', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend', 'upload.html'));
-});
-
-// Serve the feed page
-app.get('/feed', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend', 'feed.html'));
 });
 
 // User registration
