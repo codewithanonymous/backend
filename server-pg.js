@@ -98,15 +98,15 @@ if (!fs.existsSync(uploadDir)) {
 
 // Your routes here...
 
-// Start server
-server.listen(PORT, () => {
+// Start server - make sure this is at the bottom of your file
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
     console.log(`Server listening on port ${PORT}`);
-    console.log(`Upload directory: ${uploadDir}`);
 }).on('error', (error) => {
     console.error('Server failed to start:', error);
     process.exit(1);
 });
+
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
