@@ -78,32 +78,67 @@ console.log('Frontend path:', frontendPath);
 // Serve static files (JS, CSS, images, etc.)
 if (fs.existsSync(frontendPath)) {
     console.log('Serving static files from:', frontendPath);
-    app.use(express.static(frontendPath));
+    
+    // Serve static files with cache control
+    app.use(express.static(frontendPath, {
+        maxAge: '1d',
+        setHeaders: (res, path) => {
+            // Set longer cache for assets
+            if (path.endsWith('.js') || path.endsWith('.css') || 
+                path.match(/\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+        }
+    }));
     
     // Serve the main HTML files
     const serveHtml = (file) => (req, res) => {
         const filePath = path.join(frontendPath, file);
-        console.log('Attempting to serve:', filePath);
-        if (fs.existsSync(filePath)) {
-            res.sendFile(filePath);
-        } else {
-            console.error('File not found:', filePath);
-            res.status(404).json({ error: 'File not found', path: filePath });
-        }
+        console.log('Serving HTML file:', filePath);
+        // Set no-cache for HTML files
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(filePath);
     };
 
-    // Serve the main pages
+    // Define routes for each HTML page with redirects
     app.get('/', serveHtml('index.html'));
-    app.get('/feed', serveHtml('feed.html'));
-    app.get('/upload', serveHtml('upload.html'));
-    app.get('/admin', serveHtml('admin.html'));
+    app.get('/feed', (req, res) => res.redirect('/feed.html'));
+    app.get('/upload', (req, res) => res.redirect('/upload.html'));
+    app.get('/admin', (req, res) => res.redirect('/admin.html'));
     
-    // Handle client-side routing
+    // Handle client-side routing - serve index.html for all other GET requests
     app.get('*', (req, res) => {
+        console.log('Client-side route requested, serving index.html for:', req.path);
+        // Check if the request is for an API endpoint
+        if (req.path.startsWith('/api/')) {
+            return res.status(404).json({ error: 'Not Found', message: 'API endpoint not found' });
+        }
+        
+        // Check if the file exists
+        const filePath = path.join(frontendPath, req.path);
+        if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
+            return res.sendFile(filePath);
+        }
+        
+        // Default to index.html for SPA routing
         res.sendFile(path.join(frontendPath, 'index.html'));
     });
 } else {
     console.warn('Frontend directory not found. Running in API-only mode.');
+    
+    // If no frontend files, just provide a basic response for non-API routes
+    app.get('*', (req, res) => {
+        if (req.path.startsWith('/api/')) {
+            return res.status(404).json({ error: 'Not Found', message: 'API endpoint not found' });
+        }
+        res.status(200).json({
+            status: 'API is running',
+            message: 'Frontend files not found. This appears to be an API-only deployment.',
+            timestamp: new Date().toISOString()
+        });
+    });
 }
 
 // Request logging middleware
@@ -808,39 +843,3 @@ async function cleanupExpiredSnaps() {
         console.error('Error during cleanup:', error);
     }
 }
-
-// Initialize database and start server
-const startServer = async () => {
-    try {
-        await db.initDb();
-        console.log('Database initialized');
-        
-        // Start cleanup job if not already running
-        if (!global.cleanupJob) {
-            global.cleanupJob = setInterval(cleanupExpiredSnaps, 60 * 60 * 1000);
-            console.log('Expired snaps cleanup job scheduled (runs every hour)');
-        }
-
-        // Start the server
-        server.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-            console.log(`Server listening on port ${PORT}`);
-        });
-    } catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
-    }
-};
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-    console.error('Unhandled Rejection:', err);
-});
-
-// Only start the server if this file is run directly (not required/imported)
-if (require.main === module) {
-    startServer();
-}
-
-// Export the server for testing
-module.exports = { app, server };
