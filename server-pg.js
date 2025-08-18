@@ -86,20 +86,25 @@ app.use((req, res, next) => {
     next();
 });
 
+// File Upload Setup
+const uploadDir = path.join(__dirname, '../frontend/uploads');
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Your routes here...
 
 // Start server
 server.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
     console.log(`Server listening on port ${PORT}`);
+    console.log(`Upload directory: ${uploadDir}`);
+}).on('error', (error) => {
+    console.error('Server failed to start:', error);
+    process.exit(1);
 });
-// --- File Upload Setup ---
-const uploadDir = path.join(__dirname, '../frontend', 'uploads');
-
-// Create uploads directory if it doesn't exist
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
