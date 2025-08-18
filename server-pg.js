@@ -41,7 +41,7 @@ const corsOptions = {
 };
 
 const app = express();
-const server = http.createServer(app);
+
 
 // Initialize Socket.IO
 const io = new Server(server, {
