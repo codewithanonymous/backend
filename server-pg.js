@@ -29,16 +29,26 @@ const allowedOrigins = [
 const corsOptions = {
     origin: function (origin, callback) {
         console.log('CORS Origin:', origin);
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.log('CORS blocked:', origin);
-            callback(new Error('Not allowed by CORS: ' + origin));
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
         }
+        
+        // Log blocked origins but allow them in development
+        if (process.env.NODE_ENV === 'development') {
+            console.log('Warning: Allowing non-whitelisted origin in development:', origin);
+            return callback(null, true);
+        }
+        
+        console.log('CORS blocked:', origin);
+        callback(new Error('Not allowed by CORS: ' + origin));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    credentials: true,
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 // Initialize Socket.IO
@@ -61,10 +71,24 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files - only if serving frontend from backend
 if (process.env.NODE_ENV === 'production') {
-    const frontendPath = path.join(__dirname, '../../frontend/build');
-    if (fs.existsSync(frontendPath)) {
-        app.use(express.static(frontendPath));
-        console.log('Serving static files from:', frontendPath);
+    const possibleFrontendPaths = [
+        path.join(__dirname, '../../frontend/build'), // Render.com path
+        path.join(__dirname, '../frontend/build'),   // Local relative path
+        path.join(__dirname, './frontend/build')     // Another possible local path
+    ];
+    
+    let frontendServed = false;
+    for (const frontendPath of possibleFrontendPaths) {
+        if (fs.existsSync(frontendPath)) {
+            app.use(express.static(frontendPath));
+            console.log('Serving static files from:', frontendPath);
+            frontendServed = true;
+            break;
+        }
+    }
+    
+    if (!frontendServed) {
+        console.warn('Frontend build directory not found. API-only mode.');
     }
 }
 
@@ -145,9 +169,26 @@ const authenticateToken = (req, res, next) => {
 
 // --- Routes ---
 
-// Serve the index page
+// Serve the index page if frontend files are available
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
+    const possibleIndexPaths = [
+        path.join(__dirname, '../../frontend/build/index.html'),
+        path.join(__dirname, '../frontend/build/index.html'),
+        path.join(__dirname, './frontend/build/index.html'),
+        path.join(__dirname, '../frontend/index.html')
+    ];
+    
+    for (const indexPath of possibleIndexPaths) {
+        if (fs.existsSync(indexPath)) {
+            return res.sendFile(indexPath);
+        }
+    }
+    
+    // If no index.html is found, send a simple response
+    res.status(200).json({
+        status: 'API is running',
+        message: 'Frontend files not found. This appears to be an API-only deployment.'
+    });
 });
 
 // Serve the upload page
