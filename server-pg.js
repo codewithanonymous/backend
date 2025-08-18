@@ -1,3 +1,4 @@
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 const express = require('express');
@@ -798,16 +799,17 @@ if (!server.listening) {
             console.log('Expired snaps cleanup job scheduled (runs every hour)');
         }
         
-        // Start the server
-        server.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-    }).catch(error => {
-        console.error('Failed to initialize database:', error);
+      // Only start the server if this file is run directly (not when imported)
+if (require.main === module) {
+    // Start server - only once at the end of the file
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+        console.log(`Server listening on port ${PORT}`);
+    }).on('error', (error) => {
+        console.error('Server failed to start:', error);
         process.exit(1);
     });
 }
-
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
