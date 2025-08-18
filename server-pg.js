@@ -1,4 +1,3 @@
-
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -57,15 +56,6 @@ initSocket(io);
 
 // Apply middleware
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Rest of your middleware and routes...
-
-// Middleware
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Preflight OPTIONS requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -74,14 +64,10 @@ if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../../frontend/build');
     if (fs.existsSync(frontendPath)) {
         app.use(express.static(frontendPath));
-        app.get('*', (req, res) => {
-            res.sendFile(path.join(frontendPath, 'index.html'));
-        });
         console.log('Serving static files from:', frontendPath);
-    } else {
-        console.warn('Frontend build directory not found at:', frontendPath);
     }
 }
+
 // Request logging middleware
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -102,13 +88,10 @@ if (!fs.existsSync(uploadDir)) {
 
 // Your routes here...
 
-// Start server - make sure this is at the bottom of your file
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-    console.log(`Server listening on port ${PORT}`);
-}).on('error', (error) => {
-    console.error('Server failed to start:', error);
-    process.exit(1);
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : null });
 });
 
 
@@ -795,31 +778,37 @@ async function cleanupExpiredSnaps() {
 }
 
 // Initialize database and start server
-if (!server.listening) {
-    db.initDb().then(() => {
+const startServer = async () => {
+    try {
+        await db.initDb();
+        console.log('Database initialized');
+        
         // Start cleanup job if not already running
         if (!global.cleanupJob) {
             global.cleanupJob = setInterval(cleanupExpiredSnaps, 60 * 60 * 1000);
             console.log('Expired snaps cleanup job scheduled (runs every hour)');
         }
-        
-        // Only start the server if this file is run directly (not when imported)
-        if (require.main === module) {
-            // Start server - only once at the end of the file
-            server.listen(PORT, '0.0.0.0', () => {
-                console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-                console.log(`Server listening on port ${PORT}`);
-            }).on('error', (error) => {
-                console.error('Server failed to start:', error);
-                process.exit(1);
-            });
-        }
-    });
-}
+
+        // Start the server
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+            console.log(`Server listening on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+};
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
 });
 
-module.exports = { app };
+// Only start the server if this file is run directly (not required/imported)
+if (require.main === module) {
+    startServer();
+}
+
+// Export the server for testing
+module.exports = { app, server };
