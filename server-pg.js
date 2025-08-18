@@ -1,5 +1,3 @@
-const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
 
 const express = require('express');
 const http = require('http');
@@ -12,6 +10,10 @@ const bcrypt = require('bcrypt');
 const cors = require('cors');
 const { Server } = require('socket.io');
 require('dotenv').config();
+
+const app = express();
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
 
 // Import our custom modules with PostgreSQL support
 const db = require('./db-pg');
@@ -39,9 +41,6 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
-
-const app = express();
-
 
 // Initialize Socket.IO
 const io = new Server(server, {
