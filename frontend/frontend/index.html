@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/config.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Replace any existing socket.io script with this -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Kitsflick</title>
+    <link rel="icon" type="image/jpeg" href="/favicon/KITSFLICK_LOGO.jpg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #fffc00, #ff00ff);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .logo-image {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: logoFloat 3s ease-in-out infinite;
+        }
+        
+        /* Mobile responsive logo sizes */
+        @media (max-width: 768px) {
+            .logo-image {
+                width: 100px;
+                height: 100px;
+                margin: 0 auto 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .logo-image {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 10px;
+            }
+            
+            .logo-image::before {
+                top: -8px;
+                left: -8px;
+                right: -8px;
+                bottom: -8px;
+                border-radius: 20px;
+            }
+        }
+        
+        @media (max-width: 320px) {
+            .logo-image {
+                width: 70px;
+                height: 70px;
+            }
+        }
+
+        .logo-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            animation: logoGlow 2s ease-in-out infinite alternate;
+        }
+
+        .logo-image:hover img {
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 15px 40px rgba(255, 252, 0, 0.4);
+        }
+
+        /* Error Popup Styles */
+        .error-popup {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, #ff4757, #ff3742) !important;
+            color: #ffffff !important;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(255, 71, 87, 0.3);
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 90%;
+            min-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .error-popup * {
+            color: #ffffff !important;
+        }
+        
+        .error-popup.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .error-popup .error-icon {
+            font-size: 20px;
+            animation: shake 0.5s ease-in-out;
+            color: #ffffff !important;
+        }
+        
+        .error-popup .error-message {
+            font-weight: 500;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        .error-popup .close-btn {
+            background: none;
+            border: none;
+            color: #ffffff !important;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+            margin-left: auto;
+        }
+        
+        .error-popup .close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff !important;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        /* Mobile responsive error popup */
+        @media (max-width: 480px) {
+            .error-popup {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                transform: translateY(-100px);
+                max-width: none;
+                min-width: auto;
+            }
+            
+            .error-popup.show {
+                transform: translateY(0);
+            }
+        }
+
+        .logo-image::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            background: linear-gradient(45deg, #fffc00, #ff00ff, #00ffff, #fffc00);
+            border-radius: 30px;
+            z-index: -1;
+            animation: logoRotate 4s linear infinite;
+            opacity: 0.7;
+        }
+
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes logoGlow {
+            0% { filter: brightness(1) drop-shadow(0 0 10px rgba(255, 252, 0, 0.5)); }
+            100% { filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 252, 0, 0.8)); }
+        }
+
+        @keyframes logoRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .logo h1 {
+            color: #fff;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            animation: textPulse 2s ease-in-out infinite;
+        }
+        
+        /* Mobile responsive text sizes */
+        @media (max-width: 768px) {
+            .logo h1 {
+                font-size: 2rem;
+                margin-bottom: 8px;
+            }
+            
+            .logo p {
+                font-size: 1rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .logo h1 {
+                font-size: 1.8rem;
+                margin-bottom: 6px;
+            }
+            
+            .logo p {
+                font-size: 0.9rem;
+            }
+        }
+        
+        @media (max-width: 320px) {
+            .logo h1 {
+                font-size: 1.5rem;
+                margin-bottom: 5px;
+            }
+            
+            .logo p {
+                font-size: 0.8rem;
+            }
+        }
+
+        @keyframes textPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .logo p {
+            color: #fff;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .form-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card.active-form {
+            transform: scale(1.02);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2);
+        }
+
+        .card.inactive-form {
+            opacity: 0.7;
+            transform: scale(0.95);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.8rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: #0066ff;
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.2);
+            outline: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #0066ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0052cc;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-muted {
+            color: #666;
+        }
+
+        .mt-4 {
+            margin-top: 1.5rem;
+        }
+
+        .mb-4 {
+            margin-bottom: 1.5rem;
+        }
+
+        .error-message {
+            color: #ff3333;
+            font-size: 0.8rem;
+            margin-top: 5px;
+            display: none;
+        }
+        
+        .error-border {
+            border-color: #ff3333 !important;
+            box-shadow: 0 0 0 2px rgba(255, 51, 51, 0.2) !important;
+        }
+        
+        .error-message i {
+            margin-right: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Success Popup */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .popup-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .popup-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .popup-overlay.active .popup-content {
+            transform: scale(1);
+        }
+
+        .popup-content i {
+            font-size: 3rem;
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+
+        .popup-content h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .popup-content p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .popup-content .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .logo {
+                margin-bottom: 20px;
+            }
+            
+            .form-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .card {
+                max-width: 100%;
+                padding: 25px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .logo {
+                margin-bottom: 15px;
+            }
+            
+            .card {
+                padding: 20px;
+                margin: 0 5px;
+            }
+            
+            .form-container {
+                gap: 15px;
+            }
+            
+            /* Reduce animation intensity on mobile for better performance */
+            .logo-image {
+                animation: logoFloatMobile 4s ease-in-out infinite;
+            }
+            
+            .logo-image::before {
+                animation: logoRotateMobile 6s linear infinite;
+            }
+            
+            .logo h1 {
+                animation: none; /* Disable text pulse on mobile */
+            }
+        }
+        
+        @media (max-width: 320px) {
+            .container {
+                padding: 8px;
+            }
+            
+            .card {
+                padding: 15px;
+                margin: 0;
+            }
+            
+            .logo {
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* Mobile-optimized animations */
+        @keyframes logoFloatMobile {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        @keyframes logoRotateMobile {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Error Popup -->
+    <div id="errorPopup" class="error-popup">
+        <i class="fas fa-exclamation-triangle error-icon"></i>
+        <span class="error-message" id="errorMessage"></span>
+        <button class="close-btn" onclick="hideErrorPopup()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="logo">
+            <div class="logo-image">
+                <img src="/favicon/KITSFLICK_LOGO.jpg" alt="KITSFLICK Logo">
+            </div>
+            <h1>KITSFLICK</h1>
+            <p>Connect with friends and share moments</p>
+        </div>
+
+        <!-- Message Container for Alerts -->
+        <div id="message-container"></div>
+
+        <div class="form-container">
+            <!-- Login Form -->
+            <div id="login-form" class="card active-form">
+                <h2>Welcome Back</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="login-username">Username</label>
+                        <input type="text" id="login-username" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label for="login-password">Password</label>
+                            <a href="#" class="text-muted" style="font-size: 0.9rem;">Forgot password?</a>
+                        </div>
+                        <div class="input-group">
+                            <input type="password" id="login-password" class="form-control" required>
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility('login-password')">
+                                <i class="far fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        Log In
+                    </button>
+                </form>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup-form" class="card inactive-form">
+                <h2>Create Account</h2>
+                <p class="text-center text-muted mb-4">Join our community today</p>
+                
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signup-username">Username</label>
+                        <input type="text" id="signup-username" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-email">College Email</label>
+                        <input type="email" id="signup-email" class="form-control" 
+                               placeholder="example@kitsw.ac.in" required>
+                        <div id="email-error" class="error-message">
+                            <i class="fas fa-exclamation-circle"></i> Please use your @kitsw.ac.in email address
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password">Password</label>
+                        <div class="input-group">
+                            <input type="password" id="signup-password" class="form-control" required minlength="6">
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signup-password')">
+                                <i class="far fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="password-requirements text-muted" style="font-size: 0.8rem; margin-top: 5px;">
+                            Must be at least 6 characters
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm Password</label>
+                        <div class="input-group">
+                            <input type="password" id="confirm-password" class="form-control" required>
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirm-password')">
+                                <i class="far fa-eye"></i>
+                            </button>
+                        </div>
+                        <div id="password-match-error" class="error-message">
+                            <i class="fas fa-exclamation-circle"></i> Passwords do not match
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="signup-button">
+                        Create Account
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <p class="text-muted">
+                By signing up, you agree to our 
+                <a href="#" style="color: #0066ff; text-decoration: none;">Terms</a> and 
+                <a href="#" style="color: #0066ff; text-decoration: none;">Privacy Policy</a>.
+            </p>
+        </div>
+    </div>
+
+    <!-- Success Popup -->
+    <div id="successPopup" class="popup-overlay">
+        <div class="popup-content">
+            <i class="fas fa-check-circle"></i>
+            <h3>Success!</h3>
+            <p id="successMessage">Account created successfully!</p>
+            <button class="btn" onclick="document.getElementById('successPopup').classList.remove('active')">
+                Continue
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Toggle password visibility
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = field.nextElementSibling.querySelector('i');
+            
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // Show message function
+        function showMessage(message, isError = false) {
+            if (!isError) {
+                // Show success popup
+                const popup = document.getElementById('successPopup');
+                const successMessage = document.getElementById('successMessage');
+                
+                if (successMessage) successMessage.textContent = message;
+                if (popup) {
+                    popup.classList.add('active');
+                    
+                    // Auto-hide after 3 seconds
+                    setTimeout(() => {
+                        popup.classList.remove('active');
+                    }, 3000);
+                }
+            } else {
+                // For errors, use the existing message container
+                const messageContainer = document.getElementById('message-container');
+                if (messageContainer) {
+                    messageContainer.textContent = message;
+                    messageContainer.className = 'message error';
+                    messageContainer.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        messageContainer.style.display = 'none';
+                    }, 5000);
+                }
+            }
+        }
+
+        // Handle form focus (active state)
+        function setActiveForm(formId) {
+            const forms = document.querySelectorAll('.card');
+            forms.forEach(form => {
+                if (form.id === formId) {
+                    form.classList.add('active-form');
+                    form.classList.remove('inactive-form');
+                } else {
+                    form.classList.remove('active-form');
+                    form.classList.add('inactive-form');
+                }
+            });
+        }
+
+        // Check authentication status and handle redirects
+        function checkAuthStatus() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const token = user?.token;
+            const currentPath = window.location.pathname;
+            
+            // If we're on the login/signup page but already authenticated, go to feed
+            if (token && (currentPath.endsWith('index.html') || currentPath === '/')) {
+                console.log('Already authenticated, redirecting to feed');
+                window.location.href = '/feed.html';
+                return;
+            }
+            
+            // If we're on a protected page but not authenticated, redirect to login
+            if (!token && (currentPath.endsWith('feed.html') || currentPath === '/')) {
+                console.log('Not authenticated, redirecting to login');
+                window.location.href = '/index.html';
+                return;
+            }
+            
+            // Handle return URL if present
+            if (token) {
+                const urlParams = new URLSearchParams(window.location.search);
+                let returnUrl = urlParams.get('returnUrl');
+                
+                if (returnUrl) {
+                    try {
+                        // Decode and validate the return URL
+                        returnUrl = decodeURIComponent(returnUrl);
+                        const url = new URL(returnUrl, window.location.origin);
+                        
+                        // Only allow relative URLs to our own domain
+                        if (url.origin === window.location.origin) {
+                            console.log('Redirecting to return URL:', returnUrl);
+                            window.location.href = returnUrl;
+                        } else {
+                            console.warn('Invalid return URL domain, defaulting to feed');
+                            window.location.href = '/feed.html';
+                        }
+                    } catch (e) {
+                        console.error('Invalid return URL, defaulting to feed:', e);
+                        window.location.href = '/feed.html';
+                    }
+                }
+            }
+        }
+
+        // Form submission handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check auth status when page loads
+            checkAuthStatus();
+            // Initialize forms
+            setActiveForm('login-form');
+            
+            // Password validation
+            const signupPassword = document.getElementById('signup-password');
+            const confirmPassword = document.getElementById('confirm-password');
+            const signupEmail = document.getElementById('signup-email');
+            const passwordMatchError = document.getElementById('password-match-error');
+            const emailError = document.getElementById('email-error');
+            const signupButton = document.getElementById('signup-button');
+            
+            // Form click handlers
+            document.getElementById('login-form').addEventListener('click', (e) => {
+                if (e.target.closest('form') || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                setActiveForm('login-form');
+            });
+            
+            document.getElementById('signup-form').addEventListener('click', (e) => {
+                if (e.target.closest('form') || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                setActiveForm('signup-form');
+            });
+
+            // Validate email domain
+            function validateEmail() {
+                const email = signupEmail.value.trim();
+                const isValid = email.endsWith('@kitsw.ac.in');
+                
+                if (email && !isValid) {
+                    emailError.style.display = 'block';
+                    signupEmail.classList.add('error-border');
+                    return false;
+                } else {
+                    emailError.style.display = 'none';
+                    signupEmail.classList.remove('error-border');
+                    return true;
+                }
+            }
+            
+            // Add event listener for email validation
+            if (signupEmail) {
+                signupEmail.addEventListener('blur', validateEmail);
+                signupEmail.addEventListener('input', function() {
+                    if (this.value.endsWith('@kitsw.ac.in')) {
+                        emailError.style.display = 'none';
+                        this.classList.remove('error-border');
+                    }
+                });
+            }
+
+            // Password match validation
+            function validatePasswords() {
+                const passwordsMatch = signupPassword.value === confirmPassword.value;
+                const isPasswordValid = signupPassword.value.length >= 6;
+                const isEmailValid = validateEmail();
+                
+                if (!passwordsMatch) {
+                    passwordMatchError.style.display = 'block';
+                    signupButton.disabled = true;
+                    signupButton.style.opacity = '0.7';
+                    return false;
+                } else {
+                    passwordMatchError.style.display = 'none';
+                }
+                
+                // Enable/disable button based on all validations
+                const isFormValid = passwordsMatch && isPasswordValid && isEmailValid;
+                signupButton.disabled = !isFormValid;
+                signupButton.style.opacity = isFormValid ? '1' : '0.7';
+                
+                return isFormValid;
+            }
+
+            if (signupPassword && confirmPassword) {
+                [signupPassword, confirmPassword].forEach(input => {
+                    input.addEventListener('input', validatePasswords);
+                });
+            }
+
+            // Handle successful signup
+            function handleSignupSuccess() {
+                showMessage('Account created successfully! You can now login.');
+                
+                // Switch to login form after a short delay
+                setTimeout(() => {
+                    setActiveForm('login-form');
+                    document.getElementById('signupForm').reset();
+                }, 1500);
+            }
+
+            // Login form submission
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async function(e) {
+                    console.log('=== LOGIN FORM SUBMISSION STARTED ===');
+                    e.preventDefault();
+                    
+                    console.log('Form submission prevented, collecting form data...');
+                    
+                    const username = document.getElementById('login-username').value;
+                    const password = document.getElementById('login-password').value;
+                    
+                    console.log('Form data collected:', {
+                        username: username,
+                        passwordLength: password.length,
+                        usernameEmpty: !username,
+                        passwordEmpty: !password
+                    });
+                    
+                    if (!username || !password) {
+                        console.error('Missing login credentials:', { username: !!username, password: !!password });
+                        showErrorPopup('Please enter both username and password.');
+                        return;
+                    }
+                    
+                    try {
+                        console.log('Sending login request to /api/login...');
+                        const requestBody = { username, password };
+                        console.log('Login request body:', requestBody);
+                        
+                        const response = await fetch(`${config.API_BASE_URL}/api/login`, {
+    method: 'POST',
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                        
+                        console.log('Login response received:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            ok: response.ok
+                        });
+                        
+                        const data = await response.json();
+                        console.log('Login response data:', data);
+                        
+                        if (response.ok) {
+                            console.log('Login successful!');
+                            
+                            // Store token with user data
+                            const userData = {
+                                ...data.user,
+                                token: data.token
+                            };
+                            localStorage.setItem('user', JSON.stringify(userData));
+                            console.log('User data stored in localStorage:', userData);
+                            
+                            // Show success message and redirect to feed
+                            showMessage('Login successful!', false);
+                            console.log('Redirecting to feed...');
+                            window.location.href = '/feed.html';
+                        } else {
+                            // Handle login error
+                            console.error('Login failed:', data);
+                            showErrorPopup(data.message || 'Login failed. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        showErrorPopup('An error occurred. Please try again.');
+                    }
+                    
+                    console.log('=== LOGIN FORM SUBMISSION COMPLETED ===');
+                });
+            }
+
+            // Signup form submission
+            const signupForm = document.getElementById('signupForm');
+            if (signupForm) {
+                signupForm.addEventListener('submit', async function(e) {
+                    console.log('=== SIGNUP FORM SUBMISSION STARTED ===');
+                    e.preventDefault();
+                    
+                    console.log('Form submission prevented, starting validation...');
+                    
+                    if (!validatePasswords()) {
+                        console.log('Password validation failed, stopping submission');
+                        return;
+                    }
+                    console.log('Password validation passed');
+                    
+                    const username = document.getElementById('signup-username').value.trim();
+                    const email = document.getElementById('signup-email').value.trim();
+                    const password = document.getElementById('signup-password').value;
+                    
+                    console.log('Form data collected:', {
+                        username: username,
+                        email: email,
+                        passwordLength: password.length,
+                        emailValid: email.endsWith('@kitsw.ac.in')
+                    });
+                    
+                    // Email domain validation
+                    if (!email.endsWith('@kitsw.ac.in')) {
+                        console.error('Invalid email domain:', email);
+                        showErrorPopup('Please use your KITSW domain email ID (@kitsw.ac.in)');
+                        return;
+                    }
+                    
+                    if (!username || !email || !password) {
+                        console.error('Missing required fields:', { username: !!username, email: !!email, password: !!password });
+                        showErrorPopup('Please fill in all required fields.');
+                        return;
+                    }
+                    
+                    try {
+                        console.log('Sending signup request to /api/signup...');
+                        const requestBody = { username, email, password };
+                        console.log('Request body:', requestBody);
+                        
+                        const response = await fetch(`${config.API_BASE_URL}/api/signup`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                        
+                        console.log('Signup response received:', {
+                            status: response.status,
+                            statusText: response.statusText,
+                            ok: response.ok
+                        });
+                        
+                        const data = await response.json();
+                        console.log('Signup response data:', data);
+                        
+                        if (response.ok) {
+                            console.log('Signup successful, attempting auto-login...');
+                            
+                            // After successful signup, automatically log the user in
+                            const loginRequestBody = { username, password };
+                            console.log('Login request body:', loginRequestBody);
+                            
+                       const loginResponse = await fetch(`${config.API_BASE_URL}/api/login`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(loginRequestBody)
+                            });
+                            
+                            console.log('Login response received:', {
+                                status: loginResponse.status,
+                                statusText: loginResponse.statusText,
+                                ok: loginResponse.ok
+                            });
+                            
+                            const loginData = await loginResponse.json();
+                            console.log('Login response data:', loginData);
+                            
+                            if (loginResponse.ok) {
+                                console.log('Auto-login successful');
+                                
+                                // Store token with user data
+                                const userData = {
+                                    ...loginData.user,
+                                    token: loginData.token
+                                };
+                                localStorage.setItem('user', JSON.stringify(userData));
+                                console.log('User data stored in localStorage:', userData);
+                                
+                                showMessage('Account created and logged in successfully!', false);
+                                
+                                // Redirect to feed after a short delay
+                                console.log('Redirecting to feed page in 1.5 seconds...');
+                                setTimeout(() => {
+                                    window.location.href = '/feed.html';
+                                }, 1500);
+                            } else {
+                                console.log('Auto-login failed, showing success message for manual login');
+                                // If auto-login fails, just show success message and let user log in manually
+                                handleSignupSuccess();
+                            }
+                        } else {
+                            console.error('Signup failed:', data);
+                            // Handle specific error messages
+                            if (data.message && data.message.includes('Username already exists')) {
+                                showErrorPopup('Username already exists. Please choose a different username.');
+                            } else if (data.message && data.message.includes('Email already exists')) {
+                                showErrorPopup('This email is already registered. Please use a different email or try logging in.');
+                            } else {
+                                showErrorPopup(data.message || 'Signup failed. Please try again.');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Signup error caught:', error);
+                        console.error('Error details:', {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                        showErrorPopup('An error occurred. Please try again.');
+                    }
+                    
+                    console.log('=== SIGNUP FORM SUBMISSION COMPLETED ===');
+                });
+            }
+
+            // Error popup functions
+            function showErrorPopup(message) {
+                const popup = document.getElementById('errorPopup');
+                const messageElement = document.getElementById('errorMessage');
+                
+                // Force text content and styling
+                messageElement.textContent = message;
+                messageElement.style.color = '#ffffff';
+                messageElement.style.display = 'block';
+                messageElement.style.visibility = 'visible';
+                messageElement.style.opacity = '1';
+                
+                popup.classList.add('show');
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    hideErrorPopup();
+                }, 5000);
+            }
+
+            function hideErrorPopup() {
+                const popup = document.getElementById('errorPopup');
+                popup.classList.remove('show');
+            }
+        });
+    </script>
+</body>
+</html>
