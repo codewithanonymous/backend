@@ -39,11 +39,15 @@ const allowedOrigins = [
 // Enhanced CORS configuration with security best practices
 const corsOptions = {
     origin: function (origin, callback) {
+        // Allow requests with no origin (like server-to-server requests, health checks, etc.)
+        if (!origin) {
+            // Log but allow these requests as they might be health checks or server-to-server
+            console.log('Request with no origin, allowing with null origin');
+            return callback(null, true);
+        }
+        
         // In development, be more permissive
         if (process.env.NODE_ENV !== 'production') {
-            // Allow requests with no origin in development (curl, Postman, etc.)
-            if (!origin) return callback(null, true);
-            
             // Allow localhost and 127.0.0.1 on any port
             if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
                 console.log('Allowing development origin:', origin);
@@ -51,34 +55,22 @@ const corsOptions = {
             }
         }
         
-        // In production, be strict
-        if (process.env.NODE_ENV === 'production') {
-            // Reject requests with no origin in production
-            if (!origin) {
-                console.warn('Blocked request with no origin in production');
-                return callback(new Error('Not allowed by CORS: No origin'));
-            }
-            
-            // Check against allowed origins (case-insensitive, protocol-agnostic)
-            const normalizedOrigin = origin.toLowerCase().replace(/^https?:\/\//, '');
-            const isAllowed = allowedOrigins.some(allowedOrigin => {
-                const normalizedAllowed = allowedOrigin.toLowerCase().replace(/^https?:\/\//, '');
-                return normalizedOrigin === normalizedAllowed || 
-                       normalizedOrigin === `www.${normalizedAllowed}`;
-            });
-            
-            if (isAllowed) {
-                console.log('Allowing origin:', origin);
-                return callback(null, true);
-            }
-            
-            console.warn('Blocked origin in production:', origin);
-            return callback(new Error('Not allowed by CORS: ' + origin));
+        // Check against allowed origins (case-insensitive, protocol-agnostic)
+        const normalizedOrigin = origin.toLowerCase().replace(/^https?:\/\//, '');
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            const normalizedAllowed = allowedOrigin.toLowerCase().replace(/^https?:\/\//, '');
+            return normalizedOrigin === normalizedAllowed || 
+                   normalizedOrigin === `www.${normalizedAllowed}` ||
+                   normalizedOrigin.endsWith(`.${normalizedAllowed}`);
+        });
+        
+        if (isAllowed) {
+            console.log('Allowing origin:', origin);
+            return callback(null, true);
         }
         
-        // Default deny for any other case (shouldn't reach here)
         console.warn('Blocked origin:', origin);
-        callback(new Error('Not allowed by CORS: ' + origin));
+        return callback(new Error('Not allowed by CORS: ' + origin));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
@@ -1084,3 +1076,4 @@ if (require.main === module) {
 
 // Export the server for testing
 module.exports = { app, server };
+
