@@ -23,28 +23,33 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
 const allowedOrigins = [
     'https://kitsflick-frontend.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:5500',  // Common port for Live Server
-    'https://kitsflickbackend.onrender.com'  // Your backend domain
+    'http://localhost:3000'
 ];
 
 const corsOptions = {
     origin: function (origin, callback) {
-        console.log('CORS Origin:', origin);
         // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
+        if (!origin) {
+            console.log('No origin header, allowing request');
+            return callback(null, true);
+        }
         
+        console.log('CORS Origin:', origin);
+        
+        // Allow localhost and 127.0.0.1 for development
+        if (process.env.NODE_ENV === 'development' && 
+            (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+            console.log('Allowing local development origin:', origin);
+            return callback(null, true);
+        }
+        
+        // Check against allowed origins
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
         
-        // Log blocked origins but allow them in development
-        if (process.env.NODE_ENV === 'development') {
-            console.log('Warning: Allowing non-whitelisted origin in development:', origin);
-            return callback(null, true);
-        }
-        
-        console.log('CORS blocked:', origin);
+        // Block the request if not in allowed origins
+        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS: ' + origin));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -71,74 +76,27 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from the frontend directory
-const frontendPath = path.join(__dirname, 'frontend');
-console.log('Frontend path:', frontendPath);
-
-// Serve static files (JS, CSS, images, etc.)
-if (fs.existsSync(frontendPath)) {
-    console.log('Serving static files from:', frontendPath);
+// Static files - only if serving frontend from backend
+if (process.env.NODE_ENV === 'production') {
+    const possibleFrontendPaths = [
+        path.join(__dirname, '../../frontend/build'), // Render.com path
+        path.join(__dirname, '../frontend/build'),   // Local relative path
+        path.join(__dirname, './frontend/build')     // Another possible local path
+    ];
     
-    // Serve static files with cache control
-    app.use(express.static(frontendPath, {
-        maxAge: '1d',
-        setHeaders: (res, path) => {
-            // Set longer cache for assets
-            if (path.endsWith('.js') || path.endsWith('.css') || 
-                path.match(/\.(png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
-                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-            }
+    let frontendServed = false;
+    for (const frontendPath of possibleFrontendPaths) {
+        if (fs.existsSync(frontendPath)) {
+            app.use(express.static(frontendPath));
+            console.log('Serving static files from:', frontendPath);
+            frontendServed = true;
+            break;
         }
-    }));
+    }
     
-    // Serve the main HTML files
-    const serveHtml = (file) => (req, res) => {
-        const filePath = path.join(frontendPath, file);
-        console.log('Serving HTML file:', filePath);
-        // Set no-cache for HTML files
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(filePath);
-    };
-
-    // Define routes for each HTML page with redirects
-    app.get('/', serveHtml('index.html'));
-    app.get('/feed', (req, res) => res.redirect('/feed.html'));
-    app.get('/upload', (req, res) => res.redirect('/upload.html'));
-    app.get('/admin', (req, res) => res.redirect('/admin.html'));
-    
-    // Handle client-side routing - serve index.html for all other GET requests
-    app.get('*', (req, res) => {
-        console.log('Client-side route requested, serving index.html for:', req.path);
-        // Check if the request is for an API endpoint
-        if (req.path.startsWith('/api/')) {
-            return res.status(404).json({ error: 'Not Found', message: 'API endpoint not found' });
-        }
-        
-        // Check if the file exists
-        const filePath = path.join(frontendPath, req.path);
-        if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
-            return res.sendFile(filePath);
-        }
-        
-        // Default to index.html for SPA routing
-        res.sendFile(path.join(frontendPath, 'index.html'));
-    });
-} else {
-    console.warn('Frontend directory not found. Running in API-only mode.');
-    
-    // If no frontend files, just provide a basic response for non-API routes
-    app.get('*', (req, res) => {
-        if (req.path.startsWith('/api/')) {
-            return res.status(404).json({ error: 'Not Found', message: 'API endpoint not found' });
-        }
-        res.status(200).json({
-            status: 'API is running',
-            message: 'Frontend files not found. This appears to be an API-only deployment.',
-            timestamp: new Date().toISOString()
-        });
-    });
+    if (!frontendServed) {
+        console.warn('Frontend build directory not found. API-only mode.');
+    }
 }
 
 // Request logging middleware
@@ -218,13 +176,36 @@ const authenticateToken = (req, res, next) => {
 
 // --- Routes ---
 
-// API status endpoint
-app.get('/api', (req, res) => {
-    if (fs.existsSync(frontendPath)) {
-        res.json({ status: 'API is running', message: 'Frontend is being served' });
-    } else {
-        res.json({ status: 'API is running', message: 'Frontend files not found. This appears to be an API-only deployment.' });
+// Serve the index page if frontend files are available
+app.get('/', (req, res) => {
+    const possibleIndexPaths = [
+        path.join(__dirname, '../../frontend/build/index.html'),
+        path.join(__dirname, '../frontend/build/index.html'),
+        path.join(__dirname, './frontend/build/index.html'),
+        path.join(__dirname, '../frontend/index.html')
+    ];
+    
+    for (const indexPath of possibleIndexPaths) {
+        if (fs.existsSync(indexPath)) {
+            return res.sendFile(indexPath);
+        }
     }
+    
+    // If no index.html is found, send a simple response
+    res.status(200).json({
+        status: 'API is running',
+        message: 'Frontend files not found. This appears to be an API-only deployment.'
+    });
+});
+
+// Serve the upload page
+app.get('/upload', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend', 'upload.html'));
+});
+
+// Serve the feed page
+app.get('/feed', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend', 'feed.html'));
 });
 
 // User registration
@@ -843,3 +824,39 @@ async function cleanupExpiredSnaps() {
         console.error('Error during cleanup:', error);
     }
 }
+
+// Initialize database and start server
+const startServer = async () => {
+    try {
+        await db.initDb();
+        console.log('Database initialized');
+        
+        // Start cleanup job if not already running
+        if (!global.cleanupJob) {
+            global.cleanupJob = setInterval(cleanupExpiredSnaps, 60 * 60 * 1000);
+            console.log('Expired snaps cleanup job scheduled (runs every hour)');
+        }
+
+        // Start the server
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+            console.log(`Server listening on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+};
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
+
+// Only start the server if this file is run directly (not required/imported)
+if (require.main === module) {
+    startServer();
+}
+
+// Export the server for testing
+module.exports = { app, server };
