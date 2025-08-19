@@ -10,6 +10,14 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
+// Try to use helmet if available, otherwise skip it
+let helmet;
+try {
+    helmet = require('helmet');
+} catch (e) {
+    console.warn('helmet not installed, skipping security headers');
+}
+
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
@@ -26,54 +34,109 @@ const allowedOrigins = [
     'http://localhost:3000'
 ];
 
-// Enhanced CORS configuration
+// Enhanced CORS configuration with security best practices
 const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
+            if (process.env.NODE_ENV === 'production') {
+                console.warn('Request with no origin - only allowing in development');
+                return callback(new Error('Not allowed by CORS: No origin'));
+            }
             return callback(null, true);
         }
         
         // Allow localhost and 127.0.0.1 for development
         if (process.env.NODE_ENV !== 'production' && 
             (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+            console.log('Allowing development origin:', origin);
             return callback(null, true);
         }
         
         // Check against allowed origins
-        if (allowedOrigins.some(allowedOrigin => 
-            origin === allowedOrigin || 
-            origin.startsWith(allowedOrigin.replace('https://', 'http://'))
-        )) {
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            // Exact match or protocol-agnostic match
+            return origin === allowedOrigin || 
+                   origin.replace('http://', 'https://') === allowedOrigin ||
+                   origin.replace('https://', 'http://') === allowedOrigin;
+        });
+        
+        if (isAllowed) {
+            console.log('Allowing origin:', origin);
             return callback(null, true);
         }
         
-        console.log('CORS blocked origin:', origin);
+        console.warn('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS: ' + origin));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
+        'Content-Type',
+        'Authorization',
         'X-Requested-With',
         'Accept',
-        'Origin'
+        'Origin',
+        'Accept-Encoding',
+        'Accept-Language',
+        'Cache-Control',
+        'Connection',
+        'DNT',
+        'Pragma',
+        'Referer',
+        'User-Agent'
     ],
-    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    exposedHeaders: [
+        'Content-Length',
+        'Content-Type',
+        'Authorization'
+    ],
     credentials: true,
     maxAge: 86400, // 24 hours
     preflightContinue: false,
     optionsSuccessStatus: 204
 };
 
-// Initialize Socket.IO
+// Initialize Socket.IO with enhanced CORS settings
 const io = new Server(server, {
     cors: {
-        origin: allowedOrigins,
-        methods: ['GET', 'POST'],
+        origin: function(origin, callback) {
+            // Allow requests with no origin (like mobile apps or curl requests) in development
+            if (!origin && process.env.NODE_ENV !== 'production') {
+                return callback(null, true);
+            }
+            
+            // Check against allowed origins
+            const isAllowed = !origin || allowedOrigins.some(allowedOrigin => {
+                return origin === allowedOrigin || 
+                       origin.replace('http://', 'https://') === allowedOrigin ||
+                       origin.replace('https://', 'http://') === allowedOrigin;
+            });
+            
+            if (isAllowed) {
+                console.log('Socket.IO allowing origin:', origin || 'no origin');
+                return callback(null, true);
+            }
+            
+            console.warn('Socket.IO blocked origin:', origin);
+            return callback(new Error('Not allowed by CORS'));
+        },
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'X-Requested-With'
+        ],
         credentials: true
     },
-    path: '/socket.io/'
+    path: '/socket.io/',
+    serveClient: false,
+    cookie: {
+        name: 'io',
+        httpOnly: true,
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    }
 });
 
 // Initialize socket handlers
@@ -85,8 +148,10 @@ app.use(cors(corsOptions));
 // Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// Add security headers
-app.use(helmet());
+// Use helmet if available
+if (helmet) {
+    app.use(helmet());
+}
 
 // Add CORS headers to all responses
 app.use((req, res, next) => {
