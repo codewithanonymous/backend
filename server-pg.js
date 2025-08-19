@@ -26,36 +26,44 @@ const allowedOrigins = [
     'http://localhost:3000'
 ];
 
+// Enhanced CORS configuration
 const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) {
-            console.log('No origin header, allowing request');
             return callback(null, true);
         }
         
-        console.log('CORS Origin:', origin);
-        
         // Allow localhost and 127.0.0.1 for development
-        if (process.env.NODE_ENV === 'development' && 
+        if (process.env.NODE_ENV !== 'production' && 
             (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
-            console.log('Allowing local development origin:', origin);
             return callback(null, true);
         }
         
         // Check against allowed origins
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.some(allowedOrigin => 
+            origin === allowedOrigin || 
+            origin.startsWith(allowedOrigin.replace('https://', 'http://'))
+        )) {
             return callback(null, true);
         }
         
-        // Block the request if not in allowed origins
         console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS: ' + origin));
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With',
+        'Accept',
+        'Origin'
+    ],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
     credentials: true,
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+    maxAge: 86400, // 24 hours
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 };
 
 // Initialize Socket.IO
@@ -71,8 +79,35 @@ const io = new Server(server, {
 // Initialize socket handlers
 initSocket(io);
 
-// Apply middleware
+// Apply CORS middleware with our configuration
 app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Add security headers
+app.use(helmet());
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    // Only set the header if the origin is in our allowed list
+    if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+            res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+            return res.status(200).end();
+        }
+    }
+    
+    next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -209,7 +244,7 @@ app.get('/feed', (req, res) => {
 });
 
 // User registration
-app.post('/api/signup', async (req, res) => {
+app.post('/api/signup', cors(corsOptions), async (req, res) => {
     try {
         console.log('=== SIGNUP REQUEST RECEIVED ===');
         console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -218,19 +253,25 @@ app.post('/api/signup', async (req, res) => {
         
         if (!username || !email || !password) {
             console.log('Error: Username, email, and password are required');
-            return res.status(400).json({
-                success: false,
-                message: 'Username, email, and password are required'
-            });
+            return res.status(400)
+                .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                .header('Access-Control-Allow-Credentials', 'true')
+                .json({
+                    success: false,
+                    message: 'Username, email, and password are required'
+                });
         }
         
         console.log('Validating email format...');
         if (!email.endsWith('@kitsw.ac.in')) {
             console.log(`Error: Invalid email format: ${email}. Must end with @kitsw.ac.in`);
-            return res.status(400).json({
-                success: false,
-                message: 'Please use a valid @kitsw.ac.in email address'
-            });
+            return res.status(400)
+                .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                .header('Access-Control-Allow-Credentials', 'true')
+                .json({
+                    success: false,
+                    message: 'Please use a valid @kitsw.ac.in email address'
+                });
         }
         
         console.log('Hashing password...');
@@ -246,14 +287,17 @@ app.post('/api/signup', async (req, res) => {
             
             console.log('User created successfully:', result.rows[0]);
             
-            res.status(201).json({
-                success: true,
-                user: {
-                    id: result.rows[0].id,
-                    username: result.rows[0].username,
-                    email: result.rows[0].email
-                }
-            });
+            res.status(201)
+                .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                .header('Access-Control-Allow-Credentials', 'true')
+                .json({
+                    success: true,
+                    user: {
+                        id: result.rows[0].id,
+                        username: result.rows[0].username,
+                        email: result.rows[0].email
+                    }
+                });
             
         } catch (dbError) {
             console.error('Database error during signup:', dbError);
@@ -262,20 +306,29 @@ app.post('/api/signup', async (req, res) => {
             if (dbError.code === '23505') { // Unique violation
                 const detail = dbError.detail || '';
                 if (detail.includes('email')) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'This email is already registered'
-                    });
+                    return res.status(400)
+                        .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                        .header('Access-Control-Allow-Credentials', 'true')
+                        .json({
+                            success: false,
+                            message: 'This email is already registered'
+                        });
                 } else if (detail.includes('username')) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'This username is already taken'
-                    });
+                    return res.status(400)
+                        .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                        .header('Access-Control-Allow-Credentials', 'true')
+                        .json({
+                            success: false,
+                            message: 'This username is already taken'
+                        });
                 } else {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'User already exists'
-                    });
+                    return res.status(400)
+                        .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                        .header('Access-Control-Allow-Credentials', 'true')
+                        .json({
+                            success: false,
+                            message: 'User already exists'
+                        });
                 }
             }
             
@@ -293,8 +346,17 @@ app.post('/api/signup', async (req, res) => {
 });
 
 // User login
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', cors(corsOptions), async (req, res) => {
     try {
+        // Log headers for debugging
+        console.log('Request headers:', req.headers);
+        console.log('Request origin:', req.headers.origin);
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
+        
         const { username, password } = req.body;
         
         if (!username || !password) {
@@ -302,7 +364,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).json({ 
                 success: false, 
                 message: 'Username and password are required' 
-            });
+            }).header('Access-Control-Allow-Origin', req.headers.origin || '*');
         }
         
         console.log(`Login attempt for user: ${username}`);
@@ -315,10 +377,13 @@ app.post('/api/login', async (req, res) => {
         
         if (result.rows.length === 0) {
             console.log(`User not found: ${username}`);
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid username or password' 
-            });
+            return res.status(401)
+                .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                .header('Access-Control-Allow-Credentials', 'true')
+                .json({ 
+                    success: false, 
+                    message: 'Invalid username or password' 
+                });
         }
         
         const user = result.rows[0];
@@ -330,10 +395,13 @@ app.post('/api/login', async (req, res) => {
         
         if (!validPassword) {
             console.log('Invalid password for user:', username);
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid username or password' 
-            });
+            return res.status(401)
+                .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+                .header('Access-Control-Allow-Credentials', 'true')
+                .json({ 
+                    success: false, 
+                    message: 'Invalid username or password' 
+                });
         }
         
         // Generate JWT
@@ -346,19 +414,37 @@ app.post('/api/login', async (req, res) => {
             email: user.email
         };
         
-        res.json({
-            success: true,
-            token,
-            user: userData
+        // Set secure cookie with SameSite=None and Secure flags for cross-site requests
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: true, // Only send over HTTPS
+            sameSite: 'none', // Required for cross-site cookies
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            path: '/',
+            domain: '.onrender.com' // Adjust if your domain is different
         });
+        
+        // Send response with CORS headers
+        res.status(200)
+            .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+            .header('Access-Control-Allow-Credentials', 'true')
+            .json({
+                success: true,
+                message: 'Login successful',
+                token,
+                user: userData
+            });
         
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error during login',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
+        res.status(500)
+            .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+            .header('Access-Control-Allow-Credentials', 'true')
+            .json({
+                success: false,
+                message: 'Error during login',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
     }
 });
 
@@ -741,15 +827,29 @@ app.post('/api/admin/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        res.json({
-            success: true,
-            message: 'Login successful',
-            token: adminToken,
-            admin: {
-                id: admin.id,
-                username: admin.username
-            }
+        // Set secure cookie with SameSite=None and Secure flags for cross-site requests
+        res.cookie('token', adminToken, {
+            httpOnly: true,
+            secure: true, // Only send over HTTPS
+            sameSite: 'none', // Required for cross-site cookies
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            path: '/',
+            domain: '.render.com' // Adjust if your domain is different
         });
+
+        // Send response with CORS headers
+        res.status(200)
+            .header('Access-Control-Allow-Origin', req.headers.origin || '*')
+            .header('Access-Control-Allow-Credentials', 'true')
+            .json({
+                success: true,
+                message: 'Login successful',
+                token: adminToken,
+                admin: {
+                    id: admin.id,
+                    username: admin.username
+                }
+            });
 
     } catch (error) {
         console.error('Admin login error:', error);
