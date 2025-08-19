@@ -29,44 +29,55 @@ const { initSocket } = require('./socket');
 // JWT Secret from environment
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
+// List of allowed origins (add your production domains here)
 const allowedOrigins = [
     'https://kitsflick-frontend.onrender.com',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'http://localhost:3001'  // Add other development ports if needed
 ];
 
 // Enhanced CORS configuration with security best practices
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) {
-            if (process.env.NODE_ENV === 'production') {
-                console.warn('Request with no origin - only allowing in development');
+        // In development, be more permissive
+        if (process.env.NODE_ENV !== 'production') {
+            // Allow requests with no origin in development (curl, Postman, etc.)
+            if (!origin) return callback(null, true);
+            
+            // Allow localhost and 127.0.0.1 on any port
+            if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+                console.log('Allowing development origin:', origin);
+                return callback(null, true);
+            }
+        }
+        
+        // In production, be strict
+        if (process.env.NODE_ENV === 'production') {
+            // Reject requests with no origin in production
+            if (!origin) {
+                console.warn('Blocked request with no origin in production');
                 return callback(new Error('Not allowed by CORS: No origin'));
             }
-            return callback(null, true);
+            
+            // Check against allowed origins (case-insensitive, protocol-agnostic)
+            const normalizedOrigin = origin.toLowerCase().replace(/^https?:\/\//, '');
+            const isAllowed = allowedOrigins.some(allowedOrigin => {
+                const normalizedAllowed = allowedOrigin.toLowerCase().replace(/^https?:\/\//, '');
+                return normalizedOrigin === normalizedAllowed || 
+                       normalizedOrigin === `www.${normalizedAllowed}`;
+            });
+            
+            if (isAllowed) {
+                console.log('Allowing origin:', origin);
+                return callback(null, true);
+            }
+            
+            console.warn('Blocked origin in production:', origin);
+            return callback(new Error('Not allowed by CORS: ' + origin));
         }
         
-        // Allow localhost and 127.0.0.1 for development
-        if (process.env.NODE_ENV !== 'production' && 
-            (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
-            console.log('Allowing development origin:', origin);
-            return callback(null, true);
-        }
-        
-        // Check against allowed origins
-        const isAllowed = allowedOrigins.some(allowedOrigin => {
-            // Exact match or protocol-agnostic match
-            return origin === allowedOrigin || 
-                   origin.replace('http://', 'https://') === allowedOrigin ||
-                   origin.replace('https://', 'http://') === allowedOrigin;
-        });
-        
-        if (isAllowed) {
-            console.log('Allowing origin:', origin);
-            return callback(null, true);
-        }
-        
-        console.warn('CORS blocked origin:', origin);
+        // Default deny for any other case (shouldn't reach here)
+        console.warn('Blocked origin:', origin);
         callback(new Error('Not allowed by CORS: ' + origin));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -83,48 +94,87 @@ const corsOptions = {
         'DNT',
         'Pragma',
         'Referer',
-        'User-Agent'
+        'User-Agent',
+        'X-Forwarded-For',
+        'X-Forwarded-Proto'
     ],
     exposedHeaders: [
         'Content-Length',
         'Content-Type',
-        'Authorization'
+        'Authorization',
+        'X-Total-Count',
+        'Link'
     ],
     credentials: true,
-    maxAge: 86400, // 24 hours
+    maxAge: 600, // 10 minutes (shorter TTL for CORS preflight)
     preflightContinue: false,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    // Add CORS error handling
+    handlePreflight: (req, res) => {
+        const origin = req.headers.origin;
+        if (origin && allowedOrigins.some(o => 
+            origin.toLowerCase() === o.toLowerCase() || 
+            origin.toLowerCase().replace(/^https?:\/\//, '') === o.toLowerCase().replace(/^https?:\/\//, '')
+        )) {
+            res.status(200).end();
+            return;
+        }
+        res.status(403).json({ error: 'Not allowed by CORS' });
+    }
 };
 
 // Initialize Socket.IO with enhanced CORS settings
 const io = new Server(server, {
     cors: {
         origin: function(origin, callback) {
-            // Allow requests with no origin (like mobile apps or curl requests) in development
-            if (!origin && process.env.NODE_ENV !== 'production') {
-                return callback(null, true);
+            // In development, be more permissive
+            if (process.env.NODE_ENV !== 'production') {
+                // Allow requests with no origin in development
+                if (!origin) return callback(null, true);
+                
+                // Allow localhost and 127.0.0.1 on any port
+                if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+                    console.log('Socket.IO allowing development origin:', origin);
+                    return callback(null, true);
+                }
             }
             
-            // Check against allowed origins
-            const isAllowed = !origin || allowedOrigins.some(allowedOrigin => {
-                return origin === allowedOrigin || 
-                       origin.replace('http://', 'https://') === allowedOrigin ||
-                       origin.replace('https://', 'http://') === allowedOrigin;
-            });
-            
-            if (isAllowed) {
-                console.log('Socket.IO allowing origin:', origin || 'no origin');
-                return callback(null, true);
+            // In production, be strict
+            if (process.env.NODE_ENV === 'production') {
+                // Reject requests with no origin in production
+                if (!origin) {
+                    console.warn('Socket.IO blocked request with no origin in production');
+                    return callback(new Error('Not allowed by CORS: No origin'));
+                }
+                
+                // Check against allowed origins (case-insensitive, protocol-agnostic)
+                const normalizedOrigin = origin.toLowerCase().replace(/^https?:\/\//, '');
+                const isAllowed = allowedOrigins.some(allowedOrigin => {
+                    const normalizedAllowed = allowedOrigin.toLowerCase().replace(/^https?:\/\//, '');
+                    return normalizedOrigin === normalizedAllowed || 
+                           normalizedOrigin === `www.${normalizedAllowed}`;
+                });
+                
+                if (isAllowed) {
+                    console.log('Socket.IO allowing origin:', origin);
+                    return callback(null, true);
+                }
+                
+                console.warn('Socket.IO blocked origin in production:', origin);
+                return callback(new Error('Not allowed by CORS'));
             }
             
+            // Default deny for any other case
             console.warn('Socket.IO blocked origin:', origin);
-            return callback(new Error('Not allowed by CORS'));
+            callback(new Error('Not allowed by CORS'));
         },
         methods: ['GET', 'POST', 'OPTIONS'],
         allowedHeaders: [
             'Content-Type',
             'Authorization',
-            'X-Requested-With'
+            'X-Requested-With',
+            'Accept',
+            'Origin'
         ],
         credentials: true
     },
@@ -135,7 +185,16 @@ const io = new Server(server, {
         httpOnly: true,
         path: '/',
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        maxAge: 86400000 // 24 hours
+    },
+    // Add ping timeout and connection timeout
+    pingTimeout: 30000, // 30 seconds
+    pingInterval: 25000, // 25 seconds
+    // Handle connection errors
+    connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+        skipMiddlewares: true
     }
 });
 
