@@ -1,7 +1,16 @@
 // Frontend configuration
 const config = {
-    API_BASE_URL: 'https://kitsflickbackend.onrender.com'
+    // Use the current host for API requests in production
+    // This handles both local development and production deployment
+    API_BASE_URL: window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : window.location.protocol + '//' + window.location.host
 };
 
 // For testing in console
-console.log('Using API base URL:', config.API_BASE_URL);
+console.log('Environment:', {
+    hostname: window.location.hostname,
+    protocol: window.location.protocol,
+    href: window.location.href,
+    API_BASE_URL: config.API_BASE_URL
+});

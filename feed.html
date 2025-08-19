@@ -3,6 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <script src="/js/config.js"></script>
+    <script>
+        // Check authentication status
+        document.addEventListener('DOMContentLoaded', function() {
+            // Parse URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const forceLogout = urlParams.get('forceLogout') === 'true';
+            
+            // Clear user data if force logout is requested
+            if (forceLogout) {
+                console.log('Force logout requested, clearing user data');
+                localStorage.removeItem('user');
+                window.location.href = '/';
+                return;
+            }
+            
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const token = user?.token;
+            
+            if (!token) {
+                console.log('No authentication token found, checking for login attempt...');
+                
+                // Check if we're coming from a login attempt
+                const fromLogin = document.referrer && 
+                    (document.referrer.includes('/') || document.referrer.includes('/index.html'));
+                
+                if (fromLogin) {
+                    console.log('Login attempt failed, showing error');
+                    // Show error message and redirect to login
+                    alert('Please log in to view the feed');
+                    window.location.href = '/';
+                } else {
+                    console.log('Not logged in, redirecting to login page');
+                    // Redirect to login with return URL
+                    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+                    window.location.href = `/?returnUrl=${returnUrl}`;
+                }
+                return;
+            }
+            
+            console.log('User is authenticated:', user.username);
+            
+            // Initialize the feed after authentication check
+            if (window.snapFeedInstance) {
+                window.snapFeedInstance.init();
+            }
+        });
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#FFFC00">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -10,6 +57,7 @@
 
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>KITSWFLICK - KITSW your campus feed</title>
+    <base href="/">
     <link rel="icon" type="image/jpeg" href="/favicon/KITSFLICK_LOGO.jpg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -714,8 +762,8 @@
         </a>
     </nav>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="js/feed.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/feed.js"></script>
     <script>
         // Coming soon popup functionality
         document.addEventListener('DOMContentLoaded', function() {
